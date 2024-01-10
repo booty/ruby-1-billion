@@ -44,7 +44,6 @@ workers = NUM_WORKERS.times.map do
       end
 
       lines.each do |line|
-        # puts line
         local_count += 1
         puts elapsed("worker #{pid}", local_count, start_time) if local_count % OUTPUT_INTERVAL_WORKING == 0
         city, temp = line.split(";")
@@ -89,7 +88,7 @@ File.foreach(FILE_PATH) do |line|
 
   puts elapsed("reading", read_count, start_time) if read_count % OUTPUT_INTERVAL_READING == 0
 end
-# queue << buff
+queue << buff
 enqueue_count += buff.length
 puts "Done reading, enqueued #{enqueue_count} lines"
 NUM_WORKERS.times { queue << END_OF_WORK }
