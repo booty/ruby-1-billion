@@ -15,34 +15,12 @@ CHUNK_SIZE_BYTES = 1024 * 1024 * 100
 CPU_COUNT = os.cpu_count()
 FILE_SIZE_BYTES = os.path.getsize(FILE_PATH)
 MMAP_PAGE_SIZE = os.sysconf("SC_PAGE_SIZE")
-
-CityData = namedtuple("CityData", ["count", "total_temp", "max_temp", "min_temp"])
-
-
-def process_line_citydata(line, histo):
-    decoded_line = line.decode("utf-8")
-    idx = decoded_line.find(";")
-    if idx == -1:
-        return
-
-    city = decoded_line[:idx]
-    temp_float = float(decoded_line[idx + 1 : idx + 11])
-
-    item = histo[city]
-    updated_item = CityData(
-        count=item.count + 1,
-        total_temp=item.total_temp + temp_float,
-        max_temp=max(item.max_temp, temp_float),
-        min_temp=min(item.min_temp, temp_float),
-    )
-
-    histo[city] = updated_item
+SHOULD_PROFILE = False
 
 
 def process_line(line, histo):
     decoded_line = line.decode("utf-8")
     idx = decoded_line.find(";")
-    # if no semicolon is found, skip the line
     if idx == -1:
         return
 
@@ -62,16 +40,14 @@ def process_line(line, histo):
         histo[city] = [1, temp_float, temp_float, temp_float]
 
 
+# Will get OS errors if mmap offset is not aligned to page size
 def align_offset(offset, page_size):
     return (offset // page_size) * page_size
 
 
 def do_some_processing(worker_id, start_byte, end_byte):
-    print(f"[worker {worker_id}] Processing chunk from {start_byte} to {end_byte}")
     aligned_offset = align_offset(start_byte, MMAP_PAGE_SIZE)
-
     line_count = 0
-    # histo = defaultdict(lambda: CityData(0, 0.0, float("-inf"), float("inf")))
     histo = {}
 
     with open(FILE_PATH, "rb") as file:
@@ -80,11 +56,7 @@ def do_some_processing(worker_id, start_byte, end_byte):
         print(
             f"[worker {worker_id}] opened file, will mmap {length} bytes from offset {start_byte} (length {length}) MMAP_PAGE_SIZE: {MMAP_PAGE_SIZE}"
         )
-        if end_byte > FILE_SIZE_BYTES:
-            print(
-                f"[worker {worker_id}] end_byte {end_byte} > FILE_SIZE_BYTES {FILE_SIZE_BYTES}"
-            )
-            raise Exception("end_byte > FILE_SIZE_BYTES")
+
         mmapped_file = mmap.mmap(
             file.fileno(),
             length,
@@ -93,12 +65,11 @@ def do_some_processing(worker_id, start_byte, end_byte):
         )
 
         mmapped_file.seek(start_byte - aligned_offset)
-        print(f"[worker {worker_id}] mapped file")
 
         for line in iter(mmapped_file.readline, b""):
-            line_count += 1
-            if line_count % 10000000 == 0:
-                print(f"[worker {worker_id}] Processing line #{line_count}")
+            # line_count += 1
+            # if line_count % 10000000 == 0:
+            #     print(f"[worker {worker_id}] Processing line #{line_count}")
             process_line(line, histo)
         mmapped_file.close()
     print(f"[worker {worker_id}] Done")
@@ -106,7 +77,7 @@ def do_some_processing(worker_id, start_byte, end_byte):
 
 
 def do_some_processing_profile(worker_id, start_byte, end_byte):
-    if worker_id == -1:
+    if worker_id == 1 and SHOULD_PROFILE:
         lp = LineProfiler()
         lp.add_function(do_some_processing)
         lp.add_function(process_line)
@@ -145,7 +116,6 @@ def read_file_in_chunks(file_path=FILE_PATH):
             if end_byte < FILE_SIZE_BYTES:
                 end_byte += 1  # Include the newline character
 
-            # Add processing task to the pool
             worker_id += 1
             results.append(
                 pool.apply_async(
@@ -161,13 +131,6 @@ def read_file_in_chunks(file_path=FILE_PATH):
     pool.join()
     for result in results:
         print(len(result.get()))
-
-
-# do_stuff()
-# lp = LineProfiler()
-# lp.add_function(read_file_in_chunks)
-# lp.run("read_file_in_chunks()")
-# lp.print_stats()
 
 
 if __name__ == "__main__":
