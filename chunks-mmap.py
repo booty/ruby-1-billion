@@ -1,3 +1,7 @@
+# Takes about 1:02 to run on my machine
+# Macbook Pro M1 Max (10 cores) 64GB RAM Sonoma 14.1.2
+# Python 3.12
+
 import mmap
 import os
 import multiprocessing
