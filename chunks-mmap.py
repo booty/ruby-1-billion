@@ -16,6 +16,11 @@ CPU_COUNT = os.cpu_count()
 FILE_SIZE_BYTES = os.path.getsize(FILE_PATH)
 MMAP_PAGE_SIZE = os.sysconf("SC_PAGE_SIZE")
 SHOULD_PROFILE = False
+CITY_COUNT = 0
+CITY_SUM = 1
+CITY_MAX = 2
+CITY_MIN = 3
+CITY_AVG = 4
 
 
 def process_line(line, histo):
@@ -29,15 +34,15 @@ def process_line(line, histo):
 
     if city in histo:
         item = histo[city]
-        item[0] += 1
-        item[1] += temp_float
+        item[CITY_COUNT] += 1
+        item[CITY_SUM] += temp_float
         if temp_float > item[2]:
-            item[2] = temp_float
+            item[CITY_MAX] = temp_float
             next
         if temp_float < item[3]:
-            item[3] = temp_float
+            item[CITY_MIN] = temp_float
     else:
-        histo[city] = [1, temp_float, temp_float, temp_float]
+        histo[city] = [1, temp_float, temp_float, temp_float, 0]
 
 
 # Will get OS errors if mmap offset is not aligned to page size
@@ -70,6 +75,8 @@ def do_some_processing(worker_id, start_byte, end_byte):
             # line_count += 1
             # if line_count % 10000000 == 0:
             #     print(f"[worker {worker_id}] Processing line #{line_count}")
+            # if line_count > 1000:
+            #     return histo
             process_line(line, histo)
         mmapped_file.close()
     print(f"[worker {worker_id}] Done")
@@ -87,6 +94,26 @@ def do_some_processing_profile(worker_id, start_byte, end_byte):
         return result
     else:
         return do_some_processing(worker_id, start_byte, end_byte)
+
+
+def reduce_histos(histos):
+    final_histo = {}
+    for histo in histos:
+        for city, item in histo.items():
+            if city in final_histo:
+                final_histo[city][CITY_COUNT] += item[CITY_COUNT]
+                final_histo[city][CITY_SUM] += item[CITY_SUM]
+                final_histo[city][CITY_MAX] = max(
+                    final_histo[city][CITY_MAX], item[CITY_MAX]
+                )
+                final_histo[city][CITY_MIN] = min(
+                    final_histo[city][CITY_MIN], item[CITY_MIN]
+                )
+            else:
+                final_histo[city] = item
+    for city, item in final_histo.items():
+        item[CITY_AVG] = item[CITY_SUM] / item[CITY_COUNT]
+    return final_histo
 
 
 def read_file_in_chunks(file_path=FILE_PATH):
@@ -129,8 +156,11 @@ def read_file_in_chunks(file_path=FILE_PATH):
 
     pool.close()
     pool.join()
+    histos = []
     for result in results:
-        print(len(result.get()))
+        histos.append(result.get())
+
+    print(reduce_histos(histos))
 
 
 if __name__ == "__main__":
