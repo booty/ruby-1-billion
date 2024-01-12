@@ -1,8 +1,6 @@
 import mmap
 import os
 import multiprocessing
-from collections import defaultdict
-from collections import namedtuple
 from line_profiler import LineProfiler
 
 FILE_PATH = "../1brc/measurements.txt"
