@@ -1,11 +1,13 @@
 # Takes about 1:02 to run on my machine
 # Macbook Pro M1 Max (10 cores) 64GB RAM Sonoma 14.1.2
-# Python 3.12
+# Python 3.12.... runtime is 1:02m
+# pypy3.10-7.3.14.... runtime is 19.8s (!!!!!!)
 
 import mmap
 import os
 import multiprocessing
-from line_profiler import LineProfiler
+
+# from line_profiler import LineProfiler
 
 FILE_PATH = "../1brc/measurements.txt"
 MILLION = 1000000
