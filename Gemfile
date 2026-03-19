@@ -3,3 +3,5 @@
 source "https://rubygems.org"
 
 # gem "rails"
+
+gem "pry-byebug", "~> 3.12"

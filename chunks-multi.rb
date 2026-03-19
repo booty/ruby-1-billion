@@ -26,6 +26,29 @@ OUTPUT_INTERVAL_WORKING_LINES = 5000
 Measurement = Struct.new(:qty, :max_temp, :min_temp, :sum_temp)
 ChunkResult = Struct.new(:line_count, :histo)
 
+# Parses temperatures like "12.3\n", "-9.8\n", "99.9\n", "-99.9\n"
+# Returns integer * 10 (e.g. 12.3 -> 123, -9.8 -> -98)
+# Avoids all floating point in the hot path; divide by 10.0 only at output.
+def parse_temp(line, start)
+  b = line.getbyte(start)
+  if b == 45 # '-'
+    neg = true
+    i = start + 1
+    b = line.getbyte(i)
+  else
+    neg = false
+    i = start
+  end
+
+  if line.getbyte(i + 1) == 46 # '.' => single digit before decimal: D.D
+    val = b * 10 - 480 + line.getbyte(i + 2) - 48
+  else                          # two digits before decimal: DD.D
+    val = b * 100 - 4800 + (line.getbyte(i + 1) - 48) * 10 + line.getbyte(i + 3) - 48
+  end
+
+  neg ? -val : val
+end
+
 def process_chunk_histo(chunk)
   start_time = Time.now.utc
   line_count = 0
@@ -39,18 +62,18 @@ def process_chunk_histo(chunk)
     next if idx.nil?
 
     city = line.byteslice(0, idx)
-    temp_float = line.byteslice(idx + 1, 10).to_f
+    temp_int = parse_temp(line, idx + 1)
     # string_time += Time.now.utc - string_start_time
 
     # hash_start_time = Time.now.utc
     line_count += 1 # Disabling this saves 0.5s
     if (item = histogram[city])
       item.qty += 1
-      item.sum_temp += temp_float
-      item.max_temp = temp_float if temp_float > item.max_temp
-      item.min_temp = temp_float if temp_float < item.min_temp
+      item.sum_temp += temp_int
+      item.max_temp = temp_int if temp_int > item.max_temp
+      item.min_temp = temp_int if temp_int < item.min_temp
     else
-      histogram[city] = Measurement.new(1, temp_float, temp_float, temp_float)
+      histogram[city] = Measurement.new(1, temp_int, temp_int, temp_int)
     end
     # hash_time += Time.now.utc - hash_start_time
   end
